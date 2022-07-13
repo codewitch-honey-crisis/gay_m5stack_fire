@@ -135,11 +135,11 @@ void setup() {
     text_rect = text_font.measure_text(ssize16::max(),spoint16::zero(),text,text_draw_info.scale).bounds().center((srect16)lcd.bounds());
 }
 void loop() {  
-    rect16 r(0,(color_height-1+color_offset)%240,lcd.bounds().x2,(color_height-1+color_offset)%240);
+    rect16 r(0,(color_height-1+color_offset)%lcd.dimensions().height,lcd.bounds().x2,(color_height-1+color_offset)%lcd.dimensions().height);
     frame_buffer.fill(r,colors[0]);
     for(size_t i = 1;i<color_count;++i) {
         r.offset_inplace(0,color_height);
-        r.y1=r.y2=(r.y1%240);
+        r.y1=r.y2=(r.y1%lcd.dimensions().height);
         frame_buffer.fill(r,colors[i]);
     }
     draw::text(frame_buffer,text_rect,text_draw_info,color_t::black);
