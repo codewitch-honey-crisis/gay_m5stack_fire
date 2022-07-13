@@ -112,7 +112,7 @@ uint8_t* frame_buffer_data;
 frame_buffer_t frame_buffer;
 void setup() {
     initialize_m5stack_fire();
-    // your code here
+
     led_strip_ts=0;
     led_strip_offset = 0;
     color_offset = 0;
