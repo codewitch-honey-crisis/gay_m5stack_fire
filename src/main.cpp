@@ -69,17 +69,13 @@ void initialize_m5stack_fire() {
     Serial.begin(115200);
     SPIFFS.begin(false);
     SD.begin(4,spi_container<spi_host>::instance());
-    // since the peripherals share a bus, 
-    // make sure the first one (the LCD)
-    // with the pin assignments is 
-    // initialized first.
-    lcd.initialize();
     lcd.fill(lcd.bounds(),color_t::purple);
     rect16 rect(0,0,64,64);
     rect.center_inplace(lcd.bounds());
     lcd.fill(rect,color_t::white);
     lcd.fill(rect.inflate(-8,-8),color_t::purple);
-    //gyro.initialize();
+    // the following takes awhile
+    gyro.initialize();
     // see https://github.com/m5stack/m5-docs/blob/master/docs/en/core/fire.md
     pinMode(led_pin, OUTPUT_OPEN_DRAIN);
     led_strips.initialize();
@@ -88,11 +84,17 @@ void initialize_m5stack_fire() {
     button_c.initialize();
     lcd.fill(lcd.bounds(),color_t::black);
 }
+
 const char* text = "gay!";
+const open_font &text_font = Robinette;
 constexpr static const uint16_t text_height = 200;
+// The above line is because some fonts are kinda small 
+// in lowercase. Use the above for that. Otherwise
+// use the following:
+//constexpr static const uint16_t text_height = 200;
 srect16 text_rect;
 open_text_info text_draw_info;
-const open_font &text_font = Robinette;
+
 const rgb_pixel<16> colors[] = {
     color_t::red,
     color_t::orange,
@@ -104,37 +106,51 @@ const rgb_pixel<16> colors[] = {
 constexpr const size_t color_count = sizeof(colors)/sizeof(rgb_pixel<16>);
 const int color_height = lcd.dimensions().height/color_count;
 unsigned int color_offset;
+
 uint32_t led_strip_ts;
 uint32_t led_strip_offset;
 
+// the frame buffer type is based on the LCD's pixel format
 using frame_buffer_t = bitmap_type_from<lcd_t>;
 uint8_t* frame_buffer_data;
 frame_buffer_t frame_buffer;
+
 void setup() {
     initialize_m5stack_fire();
 
     led_strip_ts=0;
     led_strip_offset = 0;
     color_offset = 0;
+    // framebuffer is in PSRAM
     frame_buffer_data = (uint8_t*)ps_malloc(frame_buffer_t::sizeof_buffer(lcd.dimensions()));
     if(frame_buffer_data==nullptr) {
+        // shouldn't happen
         Serial.println("Out of memory.");
         while(true) {delay(10000);}
     }
+    
+    // create a bitmap with the same format as the LCD
     frame_buffer = create_bitmap_from(lcd,lcd.dimensions(),frame_buffer_data);
+
+    // draw the stripes    
     rect16 r(0,0,lcd.bounds().x2,color_height-1);
     frame_buffer.fill(r,colors[0]);
     for(size_t i = 1;i<color_count;++i) {
         r.offset_inplace(0,color_height);
         frame_buffer.fill(r,colors[i]);
     }
+    
+    // blt to the LCD
     draw::bitmap(lcd,lcd.bounds(),frame_buffer,frame_buffer.bounds());
+    
+    // precompute our text info
     text_draw_info.text = text;
     text_draw_info.font = &text_font;
     text_draw_info.scale = text_font.scale(text_height);
     text_rect = text_font.measure_text(ssize16::max(),spoint16::zero(),text,text_draw_info.scale).bounds().center((srect16)lcd.bounds());
 }
-void loop() {  
+void loop() {
+    // draw a trailing line color for each horizontal bar, expanding it downward by one pixel
     rect16 r(0,(color_height-1+color_offset)%lcd.dimensions().height,lcd.bounds().x2,(color_height-1+color_offset)%lcd.dimensions().height);
     frame_buffer.fill(r,colors[0]);
     for(size_t i = 1;i<color_count;++i) {
@@ -142,15 +158,20 @@ void loop() {
         r.y1=r.y2=(r.y1%lcd.dimensions().height);
         frame_buffer.fill(r,colors[i]);
     }
+    // draw the font
     draw::text(frame_buffer,text_rect,text_draw_info,color_t::black);
+    // now blt the frame buffer to the display
     draw::bitmap(lcd,lcd.bounds(),frame_buffer,frame_buffer.bounds());   
     uint32_t ms = millis();
     if(ms>=led_strip_ts+250) {
         led_strip_ts = ms;
+        // suspend so we update all at once on resume
         draw::suspend(led_strips);
+        // update each color
         for(int x = 0;x<led_strips.dimensions().width;++x) {
             draw::point(led_strips,point16(x,0),colors[(led_strip_offset+x)%color_count]);
         }
+        // finally, refresh the strips
         draw::resume(led_strips);
         ++led_strip_offset;
     }
