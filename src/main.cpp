@@ -87,7 +87,7 @@ constexpr static const uint16_t text_height = 200;
 // The above line is because some fonts are kinda small 
 // in lowercase. Use the above for that. Otherwise
 // use the following:
-//constexpr static const uint16_t text_height = 200;
+//constexpr static const uint16_t text_height = 100;
 srect16 text_rect;
 open_text_info text_draw_info;
 
